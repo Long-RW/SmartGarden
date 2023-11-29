@@ -4,7 +4,7 @@
 #define BLYNK_AUTH_TOKEN "sSmADQkIJw5N_5tSvw6F8iaKx2bNV2FN"
 #include <Arduino.h>
 #include <BlynkSimpleEsp32.h> //You need to add it by searching "Blynk" in libraries and install it
-
+#include <cJSON.h>
 
 
 // Your WiFi credentials.
@@ -26,7 +26,9 @@ int RUN = 0;
 // Sending data from DHT sensor to Blynk
 void sendDhtData() {
   Serial.println("Sending DHT data");
-  if(Serial2.)
+  if(Serial2.available()){
+    Serial.println(Serial2.readString());
+  }
   Blynk.virtualWrite(DHT_BLYNK_VPIN_TEMPERATURE, 25);
   Blynk.virtualWrite(DHT_BLYNK_VPIN_HUMIDITY, 60);
   
@@ -38,7 +40,7 @@ void reandAndSendSensorsData() {
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial2.begin(9600);
   Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
 
