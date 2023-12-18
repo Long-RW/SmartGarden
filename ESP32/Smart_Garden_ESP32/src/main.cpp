@@ -1,12 +1,12 @@
 // Adding the required libraries
 #define BLYNK_TEMPLATE_ID "TMPL6w8I2-IrO"
 #define BLYNK_TEMPLATE_NAME "Smart Garden"
-#define BLYNK_AUTH_TOKEN "sSmADQkIJw5N_5tSvw6F8iaKx2bNV2FN"
+#define BLYNK_AUTH_TOKEN "viEMNjwnfBro9hxChvPMpWAZ84yaCZQ1"
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include <BlynkSimpleEsp32.h> //You need to add it by searching "Blynk" in libraries and install it
 #include <cJSON.h>
-
-
+#include <WiFi.h>
 // Your WiFi credentials.
 // Set password to "" for open networks.
 #define WIFI_SSID             "Song Quynh"
@@ -20,51 +20,92 @@
 #define FAN_STATE_VPIN V1 //Virtual pin on Blynk side
 #define PUMP_STATE_VPIN  V2 //Virtual pin on Blynk side
 #define LIGHT_STATE_VPIN V0
-
+#define WIFI_LED_PIN 2
 float Temperature = 0;
 float humidity = 0;
 float Luxury = 0;
-uint8_t fan_state;
-uint8_t pump_state;
-uint8_t light_state;
+uint8_t fan_state = 1 ;
+uint8_t pump_state = 1;
+uint8_t light_state = 1;
 char data_buffer[100] = {0};
+uint8_t data_index = 0;
 
+const char ssid[] = "Song Quynh";
+const char password[] = "songquynh25042112";
 // This function creates the timer object. It's part of Blynk library
-BlynkTimer timer;
+BlynkTimer timer1;
+BlynkTimer timer2;
 int RUN = 0;
 // SETUP BLOCK
 // Sending data from DHT sensor to Blynk
 
 void get_Data();
+void read_Data();
+void reandAndSendSensorsData();
+// void Task1code(void* parameter);
+// void Task2code(void* parameter);
 
-void reandAndSendSensorsData() {
-  Serial.println("Sending DHT data");
-  if(Serial2.available()){
-    Serial.println(Serial2.readBytesUntil('*', data_buffer, 25));
-    get_Data();
+HardwareSerial SerialPort(2); // use UART2
+// TaskHandle_t Task1; 
+// TaskHandle_t Task2;  
+
+void setup() 
+{ 
+  Serial.begin(115200); 
+  SerialPort.begin(9600, SERIAL_8N1, 16, 17); 
+  pinMode(WIFI_LED_PIN,OUTPUT);
+  digitalWrite(WIFI_LED_PIN, LOW);
+
+
+
+  /* Connect to Wifi */
+  WiFi.begin(ssid, password);
+  Serial.println("Waiting for WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
-  
-  Blynk.virtualWrite(DHT_BLYNK_VPIN_TEMPERATURE, 25);
-  Blynk.virtualWrite(DHT_BLYNK_VPIN_HUMIDITY, 60);
-  Blynk.virtualWrite(DHT_BLYNK_VPIN_LIGHT,1200);
+  Serial.print("Connected: ");
+  Serial.println(WiFi.localIP());
+
+  digitalWrite(WIFI_LED_PIN, HIGH);
+  Blynk.config(BLYNK_AUTH_TOKEN);
+  timer1.setInterval(3000L, reandAndSendSensorsData);
+  timer2.setInterval(10L, read_Data);
+  // xTaskCreatePinnedToCore(Task1code,"Task1",10000,NULL,1,&Task1,0);  delay(500);   
+  // xTaskCreatePinnedToCore(Task2code,"Task2",10000,NULL,1,&Task2,1);  delay(500); 
+}  
+
+
+
+void loop(){  
+    Blynk.run();
+    timer1.run();
+    timer2.run();
+}
+
+void read_Data(){
+    if(SerialPort.available()){
+      char rx_data = SerialPort.read();
+      if(rx_data != '*'){
+        data_buffer[data_index] = rx_data;
+        data_index++;
+      }
+      else{
+        data_buffer[data_index] = 0;
+        data_index = 0;
+        get_Data();
+      }
+  }
+}
+void reandAndSendSensorsData() {
+  Serial.println("Sending  data");
+  Blynk.virtualWrite(DHT_BLYNK_VPIN_TEMPERATURE, Temperature);
+  Blynk.virtualWrite(DHT_BLYNK_VPIN_HUMIDITY, humidity);
+  Blynk.virtualWrite(DHT_BLYNK_VPIN_LIGHT,Luxury);
   Blynk.virtualWrite(FAN_STATE_VPIN, fan_state);
   Blynk.virtualWrite(PUMP_STATE_VPIN, pump_state);
   Blynk.virtualWrite(LIGHT_STATE_VPIN, light_state);
-}
-
-void setup()
-{
-  Serial.begin(115200);
-  Serial2.begin(9600);
-  Blynk.begin(BLYNK_AUTH_TOKEN, WIFI_SSID, WIFI_PASS);
-
-  // Set up timer to run every 5 sec
-  timer.setInterval(3000L, reandAndSendSensorsData);
-}
-
-void loop() {
-  Blynk.run();
-  timer.run();
 }
 
 void get_Data(){

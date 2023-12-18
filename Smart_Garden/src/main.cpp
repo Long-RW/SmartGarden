@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include <Adafruit_Sensor.h>
+#include <ArduinoJson.h>
 #include <DHT.h>
 #include <DHT_U.h>
 #include <math.h>
 #include "Wire.h"
 #include "BH1750.h"
-
 
 #define DHTPIN 10
 #define DHTTYPE    DHT11
@@ -17,7 +17,7 @@
 
 #define HUMIDITY_LEVEL 70
 #define TEMPERATURE_LEVEL 27
-#define LIGHT_CONST   143905
+#define LIGHT_CONST   2000
 
 DHT_Unified dht(DHTPIN, DHTTYPE);
 BH1750  light_sensor;
@@ -31,14 +31,15 @@ uint8_t fan_state = 0;
 uint8_t pump_state = 0;
 uint8_t light_state = 0;
 
-char send_data[64] {0};
+unsigned long current_time = 0;
 void sensor_init();
 void measure_task_process();
 void control_task_process();
-void send_data_task_process(char* buff);
+void send_data_task_process();
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
+  
   sensor_init();
   Wire.begin();
   light_sensor.begin();
@@ -46,13 +47,17 @@ void setup() {
   pinMode(PUMPCTRL_PIN, OUTPUT);
   pinMode(FANCTRL_PIN, OUTPUT);
   pinMode(LIGTH_SENSOR, INPUT);
+  current_time = millis();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   measure_task_process();
   control_task_process();
-  send_data_task_process(send_data);
+  if(millis() - current_time > 2000){
+    send_data_task_process();
+    current_time = millis();
+  }
   delay(100);
 }
 
@@ -136,7 +141,7 @@ void control_task_process(){
     digitalWrite(FANCTRL_PIN, LOW);
     fan_state = 1;
   }
-  if(round(lux) > 1000){
+  if(round(lux) > LIGHT_CONST){
     digitalWrite(LIGHTCTRL_PIN, HIGH);
     light_state = 0;
   }
@@ -146,26 +151,14 @@ void control_task_process(){
   }
     
 }
-
-void send_data_task_process(char* buff){
-  Serial.println("{");
-  Serial.print("\"Temp\": ");
-  Serial.print(temperature);
-  Serial.println(",");
-  Serial.print("\"Humi\": ");
-  Serial.print(humidity);
-  Serial.println(",");
-  Serial.print("\"Lux\": ");
-  Serial.print(lux);
-  Serial.println(",");
-  Serial.print("\"Fan\": ");
-  Serial.print(fan_state);
-  Serial.println(",");
-  Serial.print("\"Pump\": ");
-  Serial.print(pump_state);
-  Serial.println(",");
-  Serial.print("\"Light\": ");
-  Serial.println(light_state);
-  Serial.println("}");
-  Serial.println('*');  
+void send_data_task_process(){
+  StaticJsonDocument<100> doc;
+  doc["Temp"] = temperature;
+  doc["Humi"] = humidity;
+  doc["Lux"] = lux;
+  doc["Fan"] = fan_state;
+  doc["Pump"] = pump_state;
+  doc["Light"] = light_state;
+  serializeJsonPretty(doc, Serial);
+  Serial.print('*');
 }
