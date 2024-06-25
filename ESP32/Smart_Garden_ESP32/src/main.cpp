@@ -5,119 +5,193 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <BlynkSimpleEsp32.h> //You need to add it by searching "Blynk" in libraries and install it
-#include <cJSON.h>
+#include <BH1750.h>
 #include <WiFi.h>
-// Your WiFi credentials.
-// Set password to "" for open networks.
-#define WIFI_SSID             "Song Quynh"
-#define WIFI_PASS             "songquynh25042112"
-// DHT sensor settings and configuration
-#define VPIN_TEMPERATURE      V3 //Virtual pin on Blynk side
-#define VPIN_HUMIDITY         V4 //Virtual pin on Blynk side
-#define VPIN_LIGHT_STRENGTH   V5
-#define FAN1_STATE_VPIN       V1 //Virtual pin on Blynk side
-#define FAN2_STATE_VPIN       V2 //Virtual pin on Blynk side
-#define LIGHT_STATE_VPIN      V0
-#define WIFI_LED_PIN 2
+#include <DHT.h>
+#include <DHT_U.h>
+#include <MQ135.h>
+#include <LiquidCrystal_I2C.h>
+#include <Wire.h>
 
-#define FAN1_RELAY_PIN    12
-#define FAN2_RELAY_PIN    13
-#define LIGHT_RELAY_PIN    14
+#define SCL_PIN 22
+#define SDA_PIN 21
+#define DHTPIN 2 
+#define DHTTYPE DHT11  
+#define WIFI_SSID "Your Wifi Name"
+#define WIFI_PASS "Your Wifi Password"
 
-float Temperature = 0;
-float humidity = 0;
-float Luxury = 0;
-bool fan1_state = LOW;
-bool fan2_state = LOW;
-bool light_state = LOW;
+#define GAS_INPUT_PIN 32
+#define GAS_THRESH_HOLD 100
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-const char ssid[] = "SongQuynh";
-const char password[] = "Songquynh25042112";
-// This function creates the timer object. It's part of Blynk library
+byte degree_symbol[8] = {0b00111,0b00101,0b00111,0b00000,0b00000,0b00000,0b00000,0b00000};
+              
 BlynkTimer timer1;
 BlynkTimer timer2;
-int RUN = 0;
-// SETUP BLOCK
-// Sending data from DHT sensor to Blynk
+DHT dht(DHTPIN, DHTTYPE);
 
-BLYNK_WRITE(FAN1_STATE_VPIN){
-  fan1_state = param.asInt();
-  if(fan1_state == 1){
-    Serial.println("Bat Quat 1");
-    digitalWrite(WIFI_LED_PIN, HIGH);
-  }
-  else{
-    Serial.println("Tat quat 1");
-    digitalWrite(WIFI_LED_PIN, LOW);
-  }
-}
+/*Function Macro*/
+void read_and_sendData();
+void Init_LCD();
+void LCD_process();
 
-BLYNK_WRITE(FAN2_STATE_VPIN){
-  fan2_state = param.asInt();
-  if(fan2_state == 1){
-    Serial.println("Bat Quat 2");
-    digitalWrite(WIFI_LED_PIN, HIGH);
-  }
-  else{
-    Serial.println("Tat quat 2");
-    digitalWrite(WIFI_LED_PIN, LOW);
-  }
-}
-
-BLYNK_WRITE(LIGHT_STATE_VPIN){
-  light_state = param.asInt();
-  if(light_state == 1){
-    Serial.println("Bat Den");
-    digitalWrite(WIFI_LED_PIN, HIGH);
-  }
-  else{
-    Serial.println("Bat Den");
-    digitalWrite(WIFI_LED_PIN, LOW);
-  }
-}
-void reandAndSendSensorsData();
-
-
-void setup() 
-{ 
-  Serial.begin(115200); 
-  pinMode(WIFI_LED_PIN,OUTPUT);
-  pinMode(LIGHT_RELAY_PIN, OUTPUT);
-  pinMode(FAN2_RELAY_PIN, OUTPUT);
-  pinMode(FAN1_RELAY_PIN, OUTPUT);
-
-  digitalWrite(WIFI_LED_PIN, LOW);
-  digitalWrite(LIGHT_RELAY_PIN, LOW);
-  digitalWrite(FAN2_RELAY_PIN, LOW);
-  digitalWrite(FAN1_RELAY_PIN, LOW);
-  
-  /* Connect to Wifi */
-  WiFi.begin(ssid, password);
-  Serial.println("Waiting for WiFi");
+void setup()
+{   
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  dht.begin();
+  lcd.begin(16,2);
+  Init_LCD();
+  /*Connect to Wifi*/
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   Serial.print("Connected: ");
   Serial.println(WiFi.localIP());
-
-  digitalWrite(WIFI_LED_PIN, HIGH);
   Blynk.config(BLYNK_AUTH_TOKEN);
-  timer1.setInterval(1000L, reandAndSendSensorsData);
-}  
-
-
-
-void loop(){  
-    Blynk.run();
-    timer1.run();
+  timer1.setInterval(1000L, read_and_sendData);
 }
 
+void loop()   
+{
+    Blynk.run();
+    timer1.run();
+    LCD_process();
+}
 
-void reandAndSendSensorsData() {
-  // Serial.println("Sending  data");
-  Blynk.virtualWrite(VPIN_TEMPERATURE, Temperature);
-  Blynk.virtualWrite(VPIN_HUMIDITY, humidity);
-  Blynk.virtualWrite(VPIN_LIGHT_STRENGTH,Luxury);
+void read_and_sendData()
+{ 
+    float humi = dht.readHumidity();
+    float temp = dht.readTemperature();
+    if (isnan(humi) || isnan(temp)){
+        Serial.println("Failed to read from DHT sensor!");
+        return;
+    }
+    int analogSensor = analogRead(GAS_INPUT_PIN);
+    Blynk.virtualWrite(V2, analogSensor);
+    Serial.print("Gas Value: ");
+    Serial.println(analogSensor);
+    Blynk.virtualWrite(V0, temp);
+    Blynk.virtualWrite(V1, humi);
+   
+    Serial.print("Temperature : ");
+    Serial.print(temp);
+    Serial.print("Humidity : ");
+    Serial.println(humi);
+    
+ 
+}
+
+void Init_LCD(){
+  lcd.setCursor(3,0);
+  lcd.print("Air Quality");
+  lcd.setCursor(3,1);
+  lcd.print("Monitoring");
+  delay(2000);
+  lcd.clear();
+  lcd.setCursor(4,0);
+  lcd.print("Team 15");
+  delay(2000);
+  lcd.clear();
+}
+void LCD_process(){
+  float humi = dht.readHumidity();
+  float temp = dht.readTemperature();
+  int gasValue = analogRead(GAS_INPUT_PIN);
+  if(temp<=40)
+  {
+    lcd.setCursor(0,0);
+    lcd.print("Temp "); 
+    lcd.print(temp);
+    lcd.setCursor(11,0);
+    lcd.write(1);
+    lcd.createChar(1, degree_symbol);
+    lcd.setCursor(12,0);
+    lcd.print("C");
+    lcd.setCursor(0,1);
+    lcd.print("Normal Temp");
+    Serial.println("Normal Temp");
+    delay(4000);
+    lcd.clear();
+  }
+  else if(temp>40)
+  {
+    lcd.setCursor(0,0);
+    lcd.print("Temp "); 
+    lcd.print(temp);
+    lcd.setCursor(11,0);
+    lcd.write(1);
+    lcd.createChar(1, degree_symbol);
+    lcd.setCursor(12,0);
+    lcd.print("C");
+    lcd.setCursor(0,1);
+    lcd.print("High Temp");
+    Serial.println("High Temp");
+    delay(4000);
+    lcd.clear();
+  }
+
+  if(humi>85){
+    lcd.setCursor(0, 0);
+    lcd.print("Humidity ");
+    lcd.print(humi);
+    lcd.print("%");
+    lcd.setCursor(0,1);
+    lcd.print("High Humidity");
+    Serial.println("High Humidity");
+    delay(4000);
+    lcd.clear();
+  }
+  else if(humi<40)
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("Humidity ");
+    lcd.print(humi);
+    lcd.print("%");
+    lcd.setCursor(0,1);
+    lcd.print("Low Humidity");
+    Serial.println("Low Humidity");
+    delay(4000);
+    lcd.clear();
+  }
+  else 
+  {
+    lcd.setCursor(0, 0);
+    lcd.print("Humidity ");
+    lcd.print(humi);
+    lcd.print("%");
+    lcd.setCursor(0,1);
+    lcd.print("Normal Humidity");
+    Serial.println("Normal Humidity");
+    delay(4000);
+    lcd.clear();
+  }
+
+  Serial.println("Gas Value");
+  Serial.println(gasValue);
+  if(gasValue<1200)
+  {
+      lcd.setCursor(0,0);
+      lcd.print("Gas Value: ");
+      lcd.print(gasValue);
+      lcd.setCursor(0, 1);
+      lcd.print("Fresh Air");
+      Serial.println("Fresh Air");
+      delay(4000);
+      lcd.clear();
+  }
+  else if(gasValue>1200)
+  {
+      lcd.setCursor(0,0);
+      lcd.print("Gas Value: ");
+      lcd.print(gasValue);
+      lcd.setCursor(0, 1);
+      lcd.print("Bad Air");
+      Serial.println("Bad Air");
+      delay(4000);
+      lcd.clear();
+  }
 }
