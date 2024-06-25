@@ -1,7 +1,7 @@
 // Adding the required libraries
-#define BLYNK_TEMPLATE_ID "TMPL6pHLgs_5H"
-#define BLYNK_TEMPLATE_NAME "Enviroment Measure"
-#define BLYNK_AUTH_TOKEN "oM7OySbif8DvOUktWMzxPgRQcMa0MsXx"
+#define BLYNK_TEMPLATE_ID "TMPL6l1VIqxI-"
+#define BLYNK_TEMPLATE_NAME "Polution SuperVisor"
+#define BLYNK_AUTH_TOKEN "3oO_JQK-ukYaBohArCXEHcRfXj4irA2F"
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <BlynkSimpleEsp32.h> //You need to add it by searching "Blynk" in libraries and install it
